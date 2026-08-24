@@ -2,7 +2,7 @@ name: Daily Activity
 
 on:
   schedule:
-    # Cada día a las 00:00 UTC
+    # Cada día a las 00:00 UTC (= 18:00 CST)
     - cron: '0 0 * * *'
   workflow_dispatch:
 
@@ -22,23 +22,26 @@ jobs:
       - name: Pulse N commits
         env:
           COMMITS: ${{ vars.PULSE_COMMITS || '' }}
+          GH_USER:  BillyHz
+          GH_EMAIL: billy.hernandez.bhs@gmail.com
         run: |
           set -euo pipefail
 
           if [ -z "$COMMITS" ]; then
             COMMITS=$((RANDOM % 35 + 1))
           fi
-          echo "🔔 Hoy van $COMMITS commits"
+          echo "🔔 Hoy van $COMMITS commits como $GH_USER <$GH_EMAIL>"
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Autor real para que GitHub sume al contribution graph
+          git config user.name  "$GH_USER"
+          git config user.email "$GH_EMAIL"
 
           DATE=$(date -u +"%Y-%m-%d")
           touch diary.md
 
-          # Guard: si ya hay entradas de hoy, salir limpio (idempotencia)
+          # Idempotencia: si ya hay entradas de hoy, no duplicar
           if grep -q "^## ${DATE}" diary.md; then
-            echo "ℹ️ Ya hay pulses de ${DATE}; saliendo sin duplicar"
+            echo "ℹ️  Ya hay pulses de ${DATE}; saliendo sin duplicar"
             exit 0
           fi
 
