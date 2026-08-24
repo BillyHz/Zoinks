@@ -2,9 +2,13 @@ name: Daily Activity
 
 on:
   schedule:
-    # Cada día a las 00:00 UTC (19:00 CST del día anterior)
+    # Cada día a las 00:00 UTC
     - cron: '0 0 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: daily-pulse
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -13,26 +17,34 @@ jobs:
   daily-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Pulse N commits
         env:
-          COMMITS: ${{ vars.PULSE_COMMITS }}
+          COMMITS: ${{ vars.PULSE_COMMITS || '' }}
         run: |
+          set -euo pipefail
+
           if [ -z "$COMMITS" ]; then
             COMMITS=$((RANDOM % 35 + 1))
           fi
           echo "🔔 Hoy van $COMMITS commits"
 
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           DATE=$(date -u +"%Y-%m-%d")
           touch diary.md
 
-          for i in $(seq 1 $COMMITS); do
+          # Guard: si ya hay entradas de hoy, salir limpio (idempotencia)
+          if grep -q "^## ${DATE}" diary.md; then
+            echo "ℹ️ Ya hay pulses de ${DATE}; saliendo sin duplicar"
+            exit 0
+          fi
+
+          for i in $(seq 1 "$COMMITS"); do
             TS=$(date -u +"%H:%M:%S")
             echo "## ${DATE} · pulse #${i} @ ${TS} UTC" >> diary.md
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
             git add diary.md
             git commit -m "pulse: ${DATE} #${i}"
           done
